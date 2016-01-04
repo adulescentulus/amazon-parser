@@ -1,143 +1,51 @@
-function getClassElement( node, name )
+var amazonUri = "https://www.amazon.de/gp/css/order-history";
+
+function addError( object, msg ) 
 {
-    if( node.className == name ) return node;
-    for( var i = 0; i < node.childNodes.length; i++ )
-    {
-        var element = getClassElement( node.childNodes[ i ], name );
-        if( element ) return element;
-    }
-    return null;
+    object.errors.push( msg );
 }
 
-function getClassElements( node, name )
+function getShortDate( date )
 {
-    if( node.className == name ) return [ node ];
-    var elements = [];
-    for( var i = 0; i < node.childNodes.length; i++ )
-    {
-        elements = elements.concat( getClassElements( node.childNodes[ i ], name ) );
-    }
-    return elements;
+    return date
+       .replace( 'Januar', 'Jan' )
+       .replace( 'Februar', 'Feb' )
+       .replace( 'März', 'Mär' )
+       .replace( 'April', 'Apr' )
+       .replace( 'Juni', 'Jun' )
+       .replace( 'Juli', 'Jul' )
+       .replace( 'August', 'Aug' )
+       .replace( 'September', 'Sep' )
+       .replace( 'Oktober', 'Okt' )
+       .replace( 'November', 'Nov' )
+       .replace( 'Dezember', 'Dez' );
 }
 
-function getTagElement( node, name )
+function getCsvDate( date )
 {
-    if( node.nodeName == name ) return node;
-    for( var i = 0; i < node.childNodes.length; i++ )
-    {
-        var child = getTagElement( node.childNodes[ i ], name );
-        if( child ) return child;
-    }
-    return null;
+    return date;
 }
 
-function findOrders( doc, year, page )
+function getCsvName( name )
 {
-    var orderLevels = doc.getElementsByClassName( "order-info" );
-    var orderBars = doc.getElementsByClassName( "a-box-group a-spacing-base" );
-
-    orders[ year ].pages[ page ].done = true;
-
-    if( orderLevels.length != orderBars.length )
-    {
-        console.log( "Syntax Error " + year + "/" + page );
-        return;
-    }
-
-    for( var i = 0; i < orderLevels.length; i++ )
-    {
-        var order = { "price" : "0,00", "date" : "?", "link" : "", "names" : [], "products" : 0 };
-
-        var priceElement = getClassElement( orderLevels[ i ], "a-column a-span2" );
-        if( priceElement )
-        {
-            // sometimes there is no price listed next to the item anymore, so we have to check that and insert 0,00 if it's missing
-            var price_tag = priceElement.getElementsByClassName('a-color-secondary value');
-            if (price_tag.length > 0) {
-                order.price = priceElement.getElementsByClassName('a-color-secondary value')[0].innerHTML.replace(/EUR/,"").replace(/Summe/,"").trim();
-            }
-            else {
-                order.price = "0,00";
-            }
-        }
-        else
-        {
-            console.log( "No price found " + year + "/" + page );
-        }
-
-        var dateElement = getClassElement( orderLevels[ i ], "a-color-secondary value" );
-        if( dateElement )
-        {
-            order.date = dateElement.innerHTML.trim();
-        }
-        else
-        {
-            console.log( "No date found " + year + "/" + page );
-        }
-
-        var linkElement = orderLevels[ i ].getElementsByTagName('a')[1];
-        if( linkElement )
-        {
-            order.link = linkElement.href;
-        }
-        else
-        {
-            console.log( "No link found " + year + "/" + page );
-        }
-
-        var nameElements = getClassElements( orderBars[ i ], "a-fixed-left-grid-col a-col-right" );
-        if( nameElements.length > 0 )
-        {
-            var names = [];
-            for( var j = 0; j < nameElements.length; j++ )
-            {
-                // sometimes there is no link to the item, then we have to fetch the name of the item from the div tag
-                var a_tags = nameElements[ j ].getElementsByTagName('A');
-                if (a_tags.length > 0) {
-                    names.push( nameElements[ j ].getElementsByTagName('A')[0].innerHTML.trim() );
-                }
-                else {
-                    names.push( nameElements[ j ].getElementsByTagName('DIV')[0].innerHTML.trim() );
-                }
-            }
-            order.names = names;
-            order.products = names.length;
-        }
-        else
-        {
-            console.log( "No names found " + year + "/" + page );
-        }
-
-        orders[ year ].pages[ page ].entries.push( order );
-    }
+    return name
+       .replace( /[\n]/g, "" )
+       .replace( /[\r]/g, "" )
+       .replace( /;/g, "," )
+       .replace( /"/g, "'" );
 }
 
-function printState()
+function getPriceString( x )
 {
-    var s = "";
-    for( var i = 0; i < orders.length; i++ )
+    if( x == '?' )
     {
-        s += orders[ i ].year + ":";
-        if( orders[ i ].pages.length == 0 )
-        {
-            s += " waiting...";
-        }
-        for( var j = 0; j < orders[ i ].pages.length; j++ )
-        {
-            s += " " + ( orders[ i ].pages[ j ].done ? "X" : "." );
-        }
-        s += "\n";
+        return '?';
     }
-
-    document.body.innerHTML = "<pre>" + s + "</pre>";
-}
-
-function getEuroString( x )
-{
-    var eurocent = ( x.toFixed( 2 ) + "" ).split( "." );
+    
+    var eurocent = ( ( x / 100 ).toFixed( 2 ) + "" ).split( "." );
     var euro = eurocent[ 0 ];
     var euroTsd = "";
-
+    
     for( var i = 0; i < euro.length - 1; i++ )
     {
         euroTsd += euro.charAt( i );
@@ -147,19 +55,19 @@ function getEuroString( x )
         }
     }
     euroTsd += euro.charAt( euro.length - 1 );
-
+    
     return euroTsd + "," + eurocent[ 1 ];
 }
 
 function getOverviewLine( data )
 {
     return "<tr>" +
-        "<td align=\"right\">" + data.name + "</td>" +
-        "<td align=\"right\">" + getEuroString( data.cent / 100 ) + "</td>" +
+        "<td align=\"right\">" + data.name + "</td>" + 
+        "<td align=\"right\">" + getPriceString( data.cent ) + "</td>" +
         "<td align=\"right\">" + data.orders + "</td>" +
         "<td align=\"right\">" + data.products + "</td>" +
-        "<td align=\"right\">" + getEuroString( data.cent / 100 / data.products ) + "</td>" +
-        "<td align=\"right\">" + getEuroString( data.cent / 100 / data.month ) + "</td>" +
+        "<td align=\"right\">" + ( data.products > 0 ? getPriceString( data.cent / data.products ) : 0 ) + "</td>" +
+        "<td align=\"right\">" + getPriceString( data.cent / data.month ) + "</td>" +
         "</tr>";
 }
 
@@ -171,14 +79,43 @@ function getOrderLine( data )
         nameList += "<li>" + data.names[ i ] + "</li>";
     }
     nameList += "</ul>";
-
+    
     return "<tr>" +
-        "<td align=\"center\" valign=\"top\"><a href=\"" + data.link + "\">Link</a></td>" +
-        "<td align=\"right\" valign=\"top\">" + data.date + "</td>" +
+        "<td align=\"right\" valign=\"top\" style=\"white-space:nowrap;\">" + getShortDate( data.date ) + "</td>" +
         "<td align=\"center\" valign=\"top\">" + data.products + "</td>" +
-        "<td align=\"right\" valign=\"top\">" + data.price + "</td>" +
+        "<td align=\"right\" valign=\"top\">" + getPriceString( data.price )+ "</td>" +
         "<td align=\"left\" valign=\"top\">" + nameList + "</td>" +
+        "<td align=\"center\" valign=\"top\"><a href=\"" + data.link + "\">" + data.id + "</a></td>" + 
+        "<td align=\"left\" valign=\"top\"><a href=\"" + data.uri + "\">" + data.page + "</a></td>" +
         "</tr>";
+}
+
+function getCsvOrderLine( data )
+{
+    var nameList = '"';
+    for( var i = 0; i < data.names.length; i++ )
+    {
+        nameList += ( i > 0 ? ', ' : '' ) + getCsvName( data.names[ i ] );
+    }
+    nameList += '"';
+    
+    return "" + 
+       getCsvDate( data.date ) + ";" +
+       data.products + ";" +
+       getPriceString( data.price ) + ";" +
+       nameList + "<br>\n";
+}
+
+function showAsCsv( doc, allOrders )
+{
+    var text = "Datum;Produktanzahl;Preis;Beschreibung<br>\n";
+
+    for( var i = 0; i < allOrders.length; i++ )
+    {
+        text += getCsvOrderLine( allOrders[ i ] );
+    }
+    
+    doc.body.innerHTML = text;
 }
 
 function printOrders()
@@ -191,21 +128,37 @@ function printOrders()
     var years = [];
     var overall = { "name" : "Insg.", "cent" : 0, "orders" : 0, "products" : 0, "month" : 0 };
 
+    var errorString = '';
+    
     for( var i = 0; i < orders.length; i++ )
     {
-        var yearStr = orders[ i ].year.substr( 5 );
+        var yearStr = orders[ i ].yearStr;
         var year = { "name" : yearStr, "cent" : 0, "orders" : 0, "products" : 0, "month" : ( yearStr == thisYear ? thisYearMonthCount : 12 ) };
 
+        for( var e = 0; e < orders[ i ].errors.length; e++ )
+        {
+            errorString += '<li>' + yearStr + ': ' + orders[ i ].errors[ e ] + '</li>';
+        }
+        
         for( var j = 0; j < orders[ i ].pages.length; j++ )
         {
+            for( var e = 0; e < orders[ i ].pages[ j ].errors.length; e++ )
+            {
+                errorString += '<li><a href="' + orders[ i ].pages[ j ].uri + '">' + yearStr + '/' + j + '</a>: ' + orders[ i ].pages[ j ].errors[ e ] + '</li>';
+            }
+            
             for( var k = 0; k < orders[ i ].pages[ j ].entries.length; k++ )
             {
                 var entry = orders[ i ].pages[ j ].entries[ k ];
-
-                var price = entry.price.replace(/\./,"").split( "," );
-                var cent = parseInt( price[ 0 ] ) * 100 + parseInt( price[ 1 ] );
-
-                year.cent += cent;
+                entry.page = yearStr + '/' + j + '/' + k;
+                entry.uri = orders[ i ].pages[ j ].uri;
+                
+                for( var e = 0; e < entry.errors.length; e++ )
+                {
+                    errorString += '<li><a href="' + entry.uri + '">' + yearStr + '/' + j + '/' + k + '</a>: ' + entry.errors[ e ] + '</li>';
+                }
+                
+                year.cent += ( entry.price == '?' ? 0 : entry.price );
                 year.products += entry.products;
                 year.orders++;
 
@@ -213,183 +166,481 @@ function printOrders()
             }
         }
 
-        overall.cent += year.cent;
-        overall.products += year.products;
-        overall.orders += year.orders;
-        overall.month += year.month;
+        if( year.orders > 0 )
+        {
+            overall.cent += year.cent;
+            overall.products += year.products;
+            overall.orders += year.orders;
+            overall.month += year.month;
 
-        years.push( year );
+            years.push( year );
+        }
     }
-
-    var text = "<h2>Übersicht</h2>";
-
-    text += "<table cellspacing=\"0\" cellpadding=\"4\" border=\"1\"><tr>" +
+    
+    var text = 
+        '<input type="button" id="showcsv" name="showcsv" value="Als CSV anzeigen (beta)" /><br><br>' +
+        "<h2>Übersicht</h2>";
+    
+    text += "<div><table cellspacing=\"0\" cellpadding=\"4\" border=\"1\"><tr>" +
         "<th>Jahr</th>" +
-        "<th>Euro</th>" +
+        "<th>Preis</th>" + 
         "<th>Bestell.</th>" +
         "<th>Produkte</th>" +
-        "<th>Euro/Prod.</th>" +
-        "<th>Euro/Monat</th>" +
+        "<th>Preis/Prod.</th>" +
+        "<th>Preis/Monat</th>" +
         "</tr>";
-
+        
     text += getOverviewLine( overall );
     for( var i = 0; i < years.length; i++ )
     {
         text += getOverviewLine( years[ i ] );
     }
-    text += "</table>";
-
+    text += "</table></div>";
+    
     text += "<h2>Einzel-Bestellungen</h2>";
-
-    text += "<table cellspacing=\"0\" cellpadding=\"4\" border=\"1\"><tr>" +
-        "<th>Link</th>" +
-        "<th>Datum</th>" +
-        "<th>Produkte</th>" +
+    
+    text += "<div><table cellspacing=\"0\" cellpadding=\"4\" border=\"1\"><tr>" +
+        "<th>Datum</th>" + 
+        "<th>Prod.</th>" +
         "<th>Preis</th>" +
         "<th>Produktbeschreibungen</th>" +
+        "<th>Link</th>" +
+        "<th>Seite</th>" +
         "</tr>";
-
+        
     for( var i = 0; i < allOrders.length; i++ )
     {
         text += getOrderLine( allOrders[ i ] );
     }
-    text += "</table>";
-
-    document.body.innerHTML = text;
+    text += "</table></div>";
+    
+    text += "<h2>Fehler</h2>";
+    text += '<ul>' + ( errorString == '' ? '<li>Keine</li>' : errorString ) + '</ul>';        
+    
+    resultBrowser.contentDocument.body.innerHTML = text;
+    
+    resultBrowser.contentDocument.getElementById( 'showcsv' ).addEventListener( 'click', function() { showAsCsv( resultBrowser.contentDocument, allOrders ); } );
 }
 
-function loadOrders( event )
+function printState()
 {
-    if( event.currentTarget.onlyOnce )
+    var s = '';
+    for( var i = 0; i < orders.length; i++ )
     {
-        return;
-    }
-    event.currentTarget.onlyOnce = true;
-
-    findOrders( event.currentTarget.document, event.currentTarget.yearIndex, event.currentTarget.pageIndex );
-
-    event.currentTarget.close();
-}
-
-function loadYear( event )
-{
-    if( event.currentTarget.onlyOnce )
-    {
-        return;
-    }
-    event.currentTarget.onlyOnce = true;
-
-    var doc = event.currentTarget.document;
-    var as = doc.getElementsByTagName( "a" );
-    var maxIndex = 0;
-    for( var i = 0; i < as.length; i++ )
-    {
-        if( as[ i ].href.match( /startIndex=(\d+)/ ) )
+        s += '<b>' + orders[ i ].yearStr + ':</b> ';
+        if( orders[ i ].pages.length == 0 )
         {
-            maxIndex = Math.max( maxIndex, parseInt( RegExp.$1 ) );
+            s += 'Warte auf Bestellseiten...';
+        }
+        else
+        {
+            var pageCount = 0;
+            for( var j = 0; j < orders[ i ].pages.length; j++ )
+            {
+                if( orders[ i ].pages[ j ].done )
+                {
+                    pageCount++
+                }
+            }
+            if( orders[ i ].pages.length == pageCount )
+            {
+                s += 'Fertig';
+            }
+            else
+            {
+                for( var k = 0; k < orders[ i ].pages.length; k++ )
+                {
+                    s += '<span style="padding:0 10px;border:1px black solid';
+                    if( k < pageCount )
+                    {
+                        s += ';background-color:#0a0';
+                    }
+                    s += '">&nbsp;</span>';
+                } 
+            }
+        }
+        s += '<br>';
+    }
+    
+    resultBrowser.contentDocument.body.innerHTML = '<h2>Warte auf Bestellungen...</h2>' + s;
+}
+
+function waitForFinish()
+{
+    if( !resultBrowser || !resultBrowser.contentDocument )
+    {
+        return;
+    }
+    
+	  printState();
+	
+    if( orders.length == 0 )
+    {
+        setTimeout( function() { waitForFinish(); }, 1000 );
+        return;
+    }
+    
+    for( var i = 0; i < orders.length; i++ )
+    {
+        if( orders[ i ].pages.length == 0 ) 
+        {
+            setTimeout( function() { waitForFinish(); }, 1000 );
+            return;
+        }
+        for( var j = 0; j < orders[ i ].pages.length; j++ )
+        {
+            if( !orders[ i ].pages[ j ].done ) 
+            {
+                setTimeout( function() { waitForFinish(); }, 1000 );
+                return;
+            }
         }
     }
 
-    var year = event.currentTarget.yearIndex;
-
-    for( var i = 0; i <= maxIndex; i += 10 )
-    {
-        orders[ year ].pages.push( { "done" : false, "entries" : [] } );
-    }
-
-    findOrders( doc, year, 0 );
-
-    var pageUri = "https://www.amazon.de/gp/css/order-history/gp/css/order-history/ref=oss_pagination?ie=UTF8&orderFilter=" +
-        orders[ year ].year + "&search=&startIndex=";
-
-    var pageIndex = 1;
-    for( var i = 10; i <= maxIndex; i += 10 )
-    {
-        var pageTab = window.open( pageUri + i );
-        pageTab.yearIndex = year;
-        pageTab.pageIndex = pageIndex;
-        pageTab.addEventListener( "load", loadOrders, true );
-
-        pageIndex++;
-    }
-
-    event.currentTarget.close();
+    printOrders();
 }
 
-function loadYearCount( event )
+function findOrders( doc, year, page, uri )
+{
+    orders[ year ].pages[ page ].done = true;
+    orders[ year ].pages[ page ].uri = uri;
+
+    var orderIt = doc.evaluate( 
+        ".//div[@id='ordersContainer']/div[@class='a-box-group a-spacing-base order']", doc.body, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null );
+
+    var orderDiv = orderIt.iterateNext();
+    if( orderDiv == null )
+    {
+        addError( orders[ year ].pages[ page ], 'Keine Bestellungen gefunden' );
+        return;
+    }
+    
+    while( orderDiv )
+    {
+        var order = { "price" : "?", "date" : "?", "link" : "", "id" : "?", "names" : [], "products" : 0, "errors" : [] };
+ 
+        var nameIt = doc.evaluate( 
+            "./div[contains(@class,'a-box')]" + 
+            "/div[@class='a-box-inner']" + 
+            "/div[contains(@class,'a-fixed-right-grid')]" +
+            "/div[@class='a-fixed-right-grid-inner']" +
+            "/div[@class='a-fixed-right-grid-col a-col-left']" +
+            "/div[@class='a-row']" +
+            "/div[contains(@class,'a-fixed-left-grid')]" +
+            "/div[@class='a-fixed-left-grid-inner']" +
+            "/div[@class='a-fixed-left-grid-col a-col-right']" +
+            "/div[@class='a-row'][1]" +
+            "/*[self::a or self::span]", orderDiv, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null );
+        
+        var nameLink = nameIt.iterateNext();
+        if( nameLink == null )
+        {
+            addError( order, 'Kein Name gefunden' );
+        }
+        
+        while( nameLink )
+        {
+            order.names.push( nameLink.innerHTML.trim() );
+            order.products += 1;
+            
+            nameLink = nameIt.iterateNext();
+        }
+        
+        var otherXP = doc.evaluate( 
+            "./div[contains(@class,'a-box')]" + 
+            "/div[@class='a-box-inner']" + 
+            "/div[contains(@class,'a-fixed-right-grid')]" +
+            "/div[@class='a-fixed-right-grid-inner']" +
+            "/div[@class='a-fixed-right-grid-col a-col-left']" +
+            "/div[@class='a-row']" +
+            "/div[contains(@class,'a-section')]" +
+            "/a[@class='a-size-medium a-link-emphasis']", orderDiv, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null );
+
+        if( otherXP.singleNodeValue )
+        {
+            var regex = /Alle ([0-9]*) Artikel/;
+            var result = regex.exec( otherXP.singleNodeValue.innerHTML );
+            if( result )
+            {
+                var totalProducts = parseInt( result[ 1 ] );
+                var restProducts = totalProducts - order.products;
+
+                order.names.push( '...und ' + restProducts + ( restProducts == 1 ? ' weiteres Produkt' : ' weitere Produkte' ) );
+                order.products += restProducts;
+            }
+        }
+      
+        var priceXP = doc.evaluate( 
+            "./div[contains(@class,'a-box')]" + 
+            "/div[@class='a-box-inner']" + 
+            "/div[@class='a-fixed-right-grid']" +
+            "/div[@class='a-fixed-right-grid-inner']" +
+            "/div[@class='a-fixed-right-grid-col a-col-left']" +
+            "/div[@class='a-row']" +
+            "/div[@class='a-column a-span2']" +
+            "/div[@class='a-row a-size-base']" +
+            "/span[@class='a-color-secondary value']", orderDiv, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null );
+        
+        if( priceXP.singleNodeValue )
+        {
+            order.price = parseInt( priceXP.singleNodeValue.innerHTML.replace( /EUR|$|£/, "" ).replace( /[,.]/g, "" ).trim() );
+        }
+        else
+        {
+            addError( order, 'Kein Preis gefunden' );
+        }
+
+        var dateXP = doc.evaluate( 
+            "./div[contains(@class,'a-box')]" + 
+            "/div[@class='a-box-inner']" + 
+            "/div[@class='a-fixed-right-grid']" +
+            "/div[@class='a-fixed-right-grid-inner']" +
+            "/div[@class='a-fixed-right-grid-col a-col-left']" +
+            "/div[@class='a-row']" +
+            "/div[@class='a-column a-span4']" +
+            "/div[@class='a-row a-size-base']" +
+            "/span[@class='a-color-secondary value']", orderDiv, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null );
+        
+        if( dateXP.singleNodeValue )
+        {
+            order.date = dateXP.singleNodeValue.innerHTML.trim();
+        }
+        else
+        {
+            addError( order, 'Kein Datum gefunden' );
+        }
+        
+        var linkXP = doc.evaluate( 
+            "./div[contains(@class,'a-box')]" + 
+            "/div[@class='a-box-inner']" + 
+            "/div[@class='a-fixed-right-grid']" +
+            "/div[@class='a-fixed-right-grid-inner']" +
+            "/div[@class='a-fixed-right-grid-col actions a-col-right']" +
+            "/div[@class='a-row a-size-base']" +
+            "/ul[@class='a-nostyle a-vertical']" +
+            "/a[@class='a-link-normal']", orderDiv, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null );
+        
+        if( linkXP.singleNodeValue )
+        {
+            order.link = linkXP.singleNodeValue.href;
+            var regex = /orderID=([0-9-]*)/;
+            var result = regex.exec( linkXP.singleNodeValue.href );
+            if( result )
+            {
+                order.id = result[ 1 ];
+            }
+        }
+        else
+        {
+            addError( order, 'Keinen Link gefunden' );
+        }
+        
+        orders[ year ].pages[ page ].entries.push( order );
+
+        orderDiv = orderIt.iterateNext();           
+    }
+}
+
+function loadOrders( event ) 
 {
     if( event.currentTarget.onlyOnce )
     {
         return;
     }
     event.currentTarget.onlyOnce = true;
+    
+    findOrders( event.currentTarget.contentDocument, event.currentTarget.yearIndex, event.currentTarget.pageIndex, event.currentTarget.pageUri + ( event.currentTarget.pageIndex * 10 ) );
 
-    var doc = event.currentTarget.document;
-    var form = doc.getElementsByClassName('time-period-chooser a-spacing-none')[0];
-    var filter = doc.getElementsByName('orderFilter')[0];
+    if( event.currentTarget.pageIndex < event.currentTarget.maxIndex )
+    {
+        var pageTab = gBrowser.getBrowserForTab( gBrowser.addTab( event.currentTarget.pageUri + ( ( event.currentTarget.pageIndex + 1 ) * 10 ) ) );
+        pageTab.yearIndex = event.currentTarget.yearIndex;
+        pageTab.pageIndex = event.currentTarget.pageIndex + 1;
+        pageTab.maxIndex = event.currentTarget.maxIndex;
+        pageTab.pageUri = event.currentTarget.pageUri;
+        pageTab.addEventListener( "load", loadOrders, true );
+    }
+
+    event.currentTarget.contentWindow.close();
+}
+
+function loadYear( event ) 
+{
+    if( event.currentTarget.onlyOnce )
+    {
+        return;
+    }
+    event.currentTarget.onlyOnce = true;
+    
+    var doc = event.currentTarget.contentDocument;
+    
+    var maxIndex = 0;
+    var naviIt = doc.evaluate( ".//ul[@class='a-pagination']/li/a", doc.body, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null );
+    var naviLink = naviIt.iterateNext();
+    while( naviLink )
+    {
+        if( naviLink.href.match( /startIndex=(\d+)/ ) )
+        {
+            maxIndex = Math.max( maxIndex, parseInt( RegExp.$1 ) );
+        }
+        naviLink = naviIt.iterateNext();           
+    }
+    
+//maxIndex = 20;
+    
+    var year = event.currentTarget.yearIndex;
+    for( var i = 0; i <= maxIndex; i += 10 )
+    {
+        orders[ year ].pages.push( { "done" : false, "entries" : [], "errors" : [] } );
+    }
+
+    var pageUri = amazonUri + "/ref=oh_aui_pagination_1_2?ie=UTF8&orderFilter=" + orders[ year ].year + "&search=&startIndex=";
+    
+    findOrders( doc, year, 0, pageUri + 0 );
+
+    if( maxIndex >= 10 )
+    {
+//alert( pageUri + maxIndex );
+
+        var startIndex = 10;
+
+//startIndex = 30;
+//maxIndex = 30;
+        
+        var pageTab = gBrowser.getBrowserForTab( gBrowser.addTab( pageUri + startIndex ) );
+        pageTab.yearIndex = year;
+        pageTab.pageIndex = startIndex /10;
+        pageTab.maxIndex = maxIndex / 10;
+        pageTab.pageUri = pageUri;
+        pageTab.addEventListener( "load", loadOrders, true );
+    }
+    
+    event.currentTarget.contentWindow.close();
+}
+
+function loadAllOrders( doc, count, yearUri )
+{
+    var anythingSelected = false;
+    for( var i = 0; i < count; i++ )
+    {
+        if( doc.getElementById( 'year' + i ).checked )
+        {
+            anythingSelected = true;
+            break;
+        }
+    }
+    if( !anythingSelected )
+    {
+        return;
+    }
+
+    var index = 0;
+    for( var i = 0; i < count; i++ )
+    {
+        if( doc.getElementById( 'year' + i ).checked )
+        {
+            index++;
+        }
+        else
+        {
+            orders.splice( index, 1 );
+        }
+    }
+    
+    for( var i = 0; i < orders.length; i++ )
+    {
+        var yearTab = gBrowser.getBrowserForTab( gBrowser.addTab( yearUri + orders[ i ].year ) );
+        yearTab.yearIndex = i;
+        yearTab.addEventListener( "load", loadYear, true );
+    }
+    
+    waitForFinish();
+}
+
+function selectAllYears( doc, count )
+{
+    for( var i = 0; i < count; i++ )
+    {
+       doc.getElementById( 'year' + i ).checked = true;
+    }
+}
+
+function loadYearCount( event ) 
+{
+    if( event.currentTarget.onlyOnce )
+    {
+        return;
+    }
+    event.currentTarget.onlyOnce = true;
+    
+    var doc = event.currentTarget.contentDocument;
+    
+    var filter = null;
+    var yearUri = amazonUri + "?";
+
+    var yearFormXP = doc.evaluate( 
+        ".//form[@id='timePeriodForm']", doc.body, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null );
+    
+    if( yearFormXP.singleNodeValue )
+    {
+        for( var i = 0; i < yearFormXP.singleNodeValue.elements.length; i++ )
+        {
+            var element = yearFormXP.singleNodeValue.elements[ i ];
+            if( element.name == 'orderFilter' )
+            {
+                 filter = element;
+                 continue;
+            }
+
+            yearUri += encodeURIComponent( element.name ) + "=" + encodeURIComponent( element.value ) + "&";
+        }
+        yearUri += "orderFilter=";
+    }
+
+    var doc = event.currentTarget.resultBrowser.contentDocument;
+
+    if( filter == null )
+    {
+        doc.body.innerHTML = "<h2>Fehler: Keine Jahresauswahl gefunden</h2>";
+        return;
+    }
 
     for( var i = 0; i < filter.options.length; i++ )
     {
         var regex = /year-(\d\d\d\d)/;
         if( regex.exec( filter.options[ i ].value ) )
         {
-            orders.push( { "year" : filter.options[ i ].value, "pages" : [] } );
+            var year = filter.options[ i ].value;
+            
+            orders.push( { "year" : year, "yearStr" : year.substr( 5 ), "pages" : [], "errors" : [] } );
         }
     }
 
-    //orders.splice( 0, orders.length - 2 );
-
-    var yearUri = "https://www.amazon.de/gp/css/order-history?";
-    for( var i = 0; i < form.elements.length; i++ )
-    {
-        var element = form.elements[ i ];
-        if( element == filter )
-        {
-            continue;
-        }
-
-        yearUri += encodeURIComponent( element.name ) + "=" + encodeURIComponent( element.value ) + "&";
-    }
-    yearUri += "orderFilter=";
-    //alert( yearUri );
-
+    var yearsString = '<h2>Jahre mit Bestellungen</h2><form action="">';
+    yearsString += '<input type="button" id="selectall" name="selectall" value="Alle selektieren" /><br><br>';
     for( var i = 0; i < orders.length; i++ )
     {
-        var yearTab = window.open( yearUri + orders[ i ].year );
-        yearTab.yearIndex = i;
-        yearTab.addEventListener( "load", loadYear, true );
+        var name = 'year' + i;
+        var checked = ( i == 0 ? 'checked="checked"' : '' );
+        yearsString += '<label><input type="checkbox" id="' + name + '" name="' + name + '" value="1" ' + checked + ' /> ' + orders[ i ].yearStr + '</label><br>';
     }
+    yearsString += '<br><input type="button" id="loadorders" name="loadorders" value="Bestellungen laden" />';
+    yearsString += '</form>';
 
-    waitInterval = setInterval( waitForFinish, 1000 );
-
-    event.currentTarget.close();
-}
-
-function waitForFinish()
-{
-    printState();
-
-    for( var i = 0; i < orders.length; i++ )
-    {
-        if( orders[ i ].pages.length == 0 )
-        {
-            return;
-        }
-        for( var j = 0; j < orders[ i ].pages.length; j++ )
-        {
-            if( !orders[ i ].pages[ j ].done )
-            {
-                return;
-            }
-        }
-    }
-
-    clearInterval( waitInterval );
-    printOrders();
+    doc.body.innerHTML = yearsString;
+    doc.getElementById( 'selectall' ).addEventListener( 'click', function() { selectAllYears( doc, orders.length ); } );
+    doc.getElementById( 'loadorders' ).addEventListener( 'click', function() { loadAllOrders( doc, orders.length, yearUri ); } );
+   
+    event.currentTarget.contentWindow.close();
 }
 
 var orders = [];
-var waitInterval;
 
-var mainTab = window.open("https://www.amazon.de/gp/css/order-history/ref=ya_orders_css");
-mainTab.addEventListener( "load", loadYearCount, true );
+var resultTab = gBrowser.addTab( null );
+gBrowser.selectedTab = resultTab;
+var resultBrowser = gBrowser.getBrowserForTab( resultTab );
+resultBrowser.addEventListener( "load", function( event ) { event.currentTarget.contentDocument.body.innerHTML = '<h2>Warte auf Jahre...</h2>'; }, true );
+
+var yearBrowser = gBrowser.getBrowserForTab( gBrowser.addTab( amazonUri + "/ref=ya_orders_css" ) );
+yearBrowser.resultBrowser = resultBrowser;
+yearBrowser.addEventListener( "load", loadYearCount, true );
